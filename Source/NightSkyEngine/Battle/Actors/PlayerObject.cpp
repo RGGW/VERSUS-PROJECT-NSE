@@ -22,6 +22,9 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Label_Block_Level1, "State.Label.Block.Leve
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Label_Block_Level2, "State.Label.Block.Level2", "Block Label Level 2");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Label_Block_Level3, "State.Label.Block.Level3", "Block Label Level 3");
 
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Subroutine_IsCorrectBlock, "Subroutine.IsCorrectBlock", "Is Correct Block");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Subroutine_HitCollision, "Subroutine.HitCollision", "Hit Collision");
+
 APlayerObject::APlayerObject()
 {
 	StoredStateMachine.Parent = this;
@@ -312,12 +315,10 @@ void APlayerObject::Update()
 		if ((AttackFlags & ATK_IsAttacking) == 0 && ComboTimer <= 0)
 		{
 			GameState->BattleState.Meter[PlayerIndex] = GameState->BattleState.MaxMeter[PlayerIndex];
-			for (const auto GaugeSide : GameState->BattleState.Gauge)
+			for (int i = 0; i < GameState->BattleState.MaxGauge.Num(); i++)
 			{
-				for (int i = 0; i < GaugeCount; i++)
-				{
-					GaugeSide[i] = GameState->BattleState.MaxGauge[i];
-				}
+				if (PlayerIndex == 0) GameState->BattleState.GaugeP1[i] = GameState->BattleState.MaxGauge[i];
+				else GameState->BattleState.GaugeP2[i] = GameState->BattleState.MaxGauge[i];
 			}
 		}
 		if (PlayerIndex == 1)
@@ -793,7 +794,7 @@ void APlayerObject::HandleHitAction(EHitAction HACT)
 		break;
 	}
 
-	for (int i = MaxPlayerObjects; i < GameState->BattleState.ActiveObjectCount; i++)
+	for (int i = GameState->Players.Num(); i < GameState->BattleState.ActiveObjectCount; i++)
 	{
 		if (GameState->SortedObjects[i]->Player == this && GameState->SortedObjects[i]->MiscFlags &
 			MISC_DeactivateOnReceiveHit)
@@ -1482,6 +1483,9 @@ bool APlayerObject::IsEnemyBlocking() const
 
 bool APlayerObject::IsCorrectBlock(EBlockType BlockType)
 {
+	CallSubroutine(Subroutine_IsCorrectBlock);
+	if (SubroutineReturnVal2) return SubroutineReturnVal1;
+	
 	if (BlockType != BLK_None && EnableFlags & ENB_Block)
 	{
 		FInputCondition Left;
@@ -1606,7 +1610,7 @@ void APlayerObject::HandleProximityBlock()
 	if (!(Enemy->AttackFlags & ATK_HitActive) || !IsCorrectBlock(Enemy->HitCommon.BlockType)
 		|| (CalculateDistanceBetweenPoints(DIST_DistanceX, OBJ_Self, POS_Self, OBJ_Enemy, POS_Self) > Enemy->HitCommon.
 			ProximityBlockDistanceX
-			&& CalculateDistanceBetweenPoints(DIST_DistanceY, OBJ_Self, POS_Self, OBJ_Enemy, POS_Self) > Enemy->
+			|| CalculateDistanceBetweenPoints(DIST_DistanceY, OBJ_Self, POS_Self, OBJ_Enemy, POS_Self) > Enemy->
 			HitCommon.ProximityBlockDistanceY))
 	{
 		if (StoredStateMachine.CurrentState->StateType == EStateType::Blockstun && StunTime == 0)
@@ -1795,30 +1799,6 @@ bool APlayerObject::HandleStateCondition(EStateCondition StateCondition)
 		break;
 	case EStateCondition::MeterFiveBars:
 		if (GameState->BattleState.Meter[PlayerIndex] >= 50000)
-			ReturnReg = true;
-		break;
-	case EStateCondition::FirstGaugeOneBar:
-		if (GameState->BattleState.Gauge[PlayerIndex][0] >= 10000)
-			ReturnReg = true;
-		break;
-	case EStateCondition::FirstGaugeTwoBars:
-		if (GameState->BattleState.Gauge[PlayerIndex][0] >= 20000)
-			ReturnReg = true;
-		break;
-	case EStateCondition::FirstGaugeThreeBars:
-		if (GameState->BattleState.Gauge[PlayerIndex][0] >= 30000)
-			ReturnReg = true;
-		break;
-	case EStateCondition::FirstGaugeFourBars:
-		if (GameState->BattleState.Gauge[PlayerIndex][0] >= 40000)
-			ReturnReg = true;
-		break;
-	case EStateCondition::FirstGaugeFiveBars:
-		if (GameState->BattleState.Gauge[PlayerIndex][0] >= 50000)
-			ReturnReg = true;
-		break;
-	case EStateCondition::FirstGaugeSixBars:
-		if (GameState->BattleState.Gauge[PlayerIndex][0] >= 60000)
 			ReturnReg = true;
 		break;
 	case EStateCondition::PlayerReg1True:
@@ -2068,7 +2048,7 @@ bool APlayerObject::CheckObjectPreventingState(int InObjectID)
 	ReturnReg = false;
 	if (InObjectID != 0)
 	{
-		for (int i = MaxPlayerObjects; i < GameState->BattleState.ActiveObjectCount; i++)
+		for (int i = GameState->Players.Num(); i < GameState->BattleState.ActiveObjectCount; i++)
 		{
 			if (GameState->SortedObjects[i]->Player == this && GameState->SortedObjects[i]->ObjectID == InObjectID)
 				return true;
@@ -2464,7 +2444,7 @@ void APlayerObject::OnStateChange()
 	if (!GameState) return;
 
 	// Deactivate all objects that need to be destroyed on state change.
-	for (int i = MaxPlayerObjects; i < GameState->BattleState.ActiveObjectCount; i++)
+	for (int i = GameState->Players.Num(); i < GameState->BattleState.ActiveObjectCount; i++)
 	{
 		if (GameState->SortedObjects[i]->Player == this && GameState->SortedObjects[i]->MiscFlags &
 			MISC_DeactivateOnStateChange)
@@ -2633,6 +2613,14 @@ void APlayerObject::RoundInit(bool ResetHealth)
 	ObjectReg6 = 0;
 	ObjectReg7 = 0;
 	ObjectReg8 = 0;
+	SubroutineReg1 = 0;
+	SubroutineReg2 = 0;
+	SubroutineReg3 = 0;
+	SubroutineReg4 = 0;
+	SubroutineReturnVal1 = 0;
+	SubroutineReturnVal2 = 0;
+	SubroutineReturnVal3 = 0;
+	SubroutineReturnVal4 = 0;
 	IsPlayer = true;
 	AttackTarget = nullptr;
 	AttackOwner = nullptr;
@@ -2753,6 +2741,7 @@ void APlayerObject::RoundInit(bool ResetHealth)
 	{
 		SetFacing(DIR_Left);
 	}
+	RoundInit_BP();
 }
 
 void APlayerObject::DisableLastInput()

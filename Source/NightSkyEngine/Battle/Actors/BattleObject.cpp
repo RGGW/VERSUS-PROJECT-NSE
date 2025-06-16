@@ -550,6 +550,9 @@ void ABattleObject::HandleHitCollision(ABattleObject* AttackedObj)
 								TriggerEvent(EVT_HitOrBlockMainPlayer);
 							}
 
+							AttackedPlayer->CallSubroutine(Subroutine_HitCollision);
+							if (AttackedPlayer->SubroutineReturnVal1) return;
+							
 							if (AttackedPlayer->IsCorrectBlock(HitCommon.BlockType)) //check blocking
 							{
 								CreateCommonParticle(Particle_Guard, POS_Enemy,
@@ -1728,9 +1731,9 @@ void ABattleObject::UpdateVisuals()
 		else
 		{
 			if (IsPlayer)
-				ScreenSpaceDepthOffset = (MaxPlayerObjects - DrawPriority) * 25;
+				ScreenSpaceDepthOffset = (GameState->Players.Num() - DrawPriority) * 25;
 			else
-				ScreenSpaceDepthOffset = (MaxBattleObjects - DrawPriority) * 15;
+				ScreenSpaceDepthOffset = (GameState->MaxBattleObjects - DrawPriority) * 15;
 			OrthoBlendActive = FMath::Lerp(OrthoBlendActive, 1, 0.2);
 		}
 	}
@@ -2075,9 +2078,17 @@ void ABattleObject::ResetObject()
 	ObjectReg6 = 0;
 	ObjectReg7 = 0;
 	ObjectReg8 = 0;
+	SubroutineReg1 = 0;
+	SubroutineReg2 = 0;
+	SubroutineReg3 = 0;
+	SubroutineReg4 = 0;
+	SubroutineReturnVal1 = 0;
+	SubroutineReturnVal2 = 0;
+	SubroutineReturnVal3 = 0;
+	SubroutineReturnVal4 = 0;
 	Timer0 = 0;
 	Timer1 = 0;
-	DrawPriority = MaxBattleObjects;
+	DrawPriority = GameState->MaxBattleObjects;
 	HomingParams = FHomingParams();
 	CelName = FGameplayTag();
 	BlendCelName = FGameplayTag();
@@ -2158,6 +2169,10 @@ void ABattleObject::CallSubroutine(FGameplayTag Name)
 {
 	if (Player->CommonSubroutineNames.Find(Name) != INDEX_NONE)
 	{
+		SubroutineReturnVal1 = 0;
+		SubroutineReturnVal2 = 0;
+		SubroutineReturnVal3 = 0;
+		SubroutineReturnVal4 = 0;
 		Player->CommonSubroutines[Player->CommonSubroutineNames.Find(Name)]->Parent = this;
 		Player->CommonSubroutines[Player->CommonSubroutineNames.Find(Name)]->Exec();
 		return;
@@ -2165,6 +2180,10 @@ void ABattleObject::CallSubroutine(FGameplayTag Name)
 
 	if (Player->SubroutineNames.Find(Name) != INDEX_NONE)
 	{
+		SubroutineReturnVal1 = 0;
+		SubroutineReturnVal2 = 0;
+		SubroutineReturnVal3 = 0;
+		SubroutineReturnVal4 = 0;
 		Player->Subroutines[Player->SubroutineNames.Find(Name)]->Parent = this;
 		Player->Subroutines[Player->SubroutineNames.Find(Name)]->Exec();
 	}
@@ -2801,15 +2820,7 @@ void ABattleObject::CameraShake(FGameplayTag PatternName, int32 Scale)
 
 int32 ABattleObject::GenerateRandomNumber(int32 Min, int32 Max) const
 {
-	if (Min > Max)
-	{
-		const int32 Temp = Max;
-		Max = Min;
-		Min = Temp;
-	}
-	int32 Result = GameState->BattleState.RandomManager.Rand();
-	Result = Result % (Max - Min + 1) + Min;
-	return Result;
+	return GameState->BattleState.RandomManager.RandRange(Min, Max);
 }
 
 void ABattleObject::StartSuperFreeze(int Duration, int SelfDuration)

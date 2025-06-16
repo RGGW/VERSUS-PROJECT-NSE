@@ -95,12 +95,6 @@ enum class EStateCondition : uint8
 	MeterThreeBars,
 	MeterFourBars,
 	MeterFiveBars,
-	FirstGaugeOneBar,
-	FirstGaugeTwoBars,
-	FirstGaugeThreeBars,
-	FirstGaugeFourBars,
-	FirstGaugeFiveBars,
-	FirstGaugeSixBars,
 	PlayerReg1True,
 	PlayerReg2True,
 	PlayerReg3True,
@@ -302,6 +296,8 @@ struct FStateCPUData
 	int32 AttackYBeginRange = 120000;
 	UPROPERTY(EditAnywhere)
 	int32 AttackYEndRange = 360000;
+	UPROPERTY(EditAnywhere)
+	bool bAttack;
 	UPROPERTY(EditAnywhere)
 	bool bCombo;
 	UPROPERTY(EditAnywhere)
